@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/your-org/sde1-agent/main/agent-config/decision-trace.schema.json",
+  "title": "sde1 agent decision checkpoint",
+  "description": "one line of the append only  decision – trace. jsonl artefact. each line records one checkpoint emitted by the agent during a run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "checkpoint_id",
+    "phase",
+    "timestamp",
+    "run_id",
+    "ticket_id",
+    "decision",
+    "rationale"
+  ],
+  "properties": {
+    "checkpoint_id": {
+      "type": "string",
+      "description": "Unique ID for this checkpoint within the run."
+    },
+    "phase": {
+      "type": "string",
+      "description": "Workflow phase that emitted the checkpoint.",
+      "enum": [
+        "understand",
+        "readiness",
+        "plan",
+        "implement",
+        "self_verify",
+        "raise_pr"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC time the checkpoint was emitted."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "GitHub Actions run identifier."
+    },
+    "ticket_id": {
+      "type": "string",
+      "description": "Jira ticket key, e.g. PROJ-1234."
+    },
+    "decision": {
+      "type": "string",
+      "description": "The choice the agent made."
+    },
+    "rationale": {
+      "type": "string",
+      "description": "Why this choice over the alternatives."
+    },
+    "alternatives_considered": {
+      "type": "array",
+      "description": "Options rejected, each with a reason.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "option",
+          "reason_rejected"
+        ],
+        "properties": {
+          "option": {
+            "type": "string"
+          },
+          "reason_rejected": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "description": "Explicit assumptions made, surfaced for reviewers.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "inputs_referenced": {
+      "type": "array",
+      "description": "Inputs that were referenced in the decision-making process.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Agent self-assessed confidence (0.0-1.0), information only",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "gate": {
+      "type": "object",
+      "description": "Present only for Gated-model approval checkpoints.",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "approval_required",
+            "approved",
+            "rejected"
+          ]
+        },
+        "approver": {
+          "type": "string",
+          "description": "Identity of the human approver (for approved/rejected status). ",
+          "items": {
+            "type": "string"
+          }
+        },
+        "feedback": {
+          "type": "string",
+          "description": "Feedback provided by the reviewer."
+        }
+      }
+    }
+  }
+}

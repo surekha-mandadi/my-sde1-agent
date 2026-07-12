@@ -1,0 +1,14 @@
+{
+  "checkpoint_id": "cp-001",
+  "phase": "readiness",
+  "timestamp": "2026-07-02T10:00:00Z",
+  "run_id": "gha-007",
+  "ticket_id": "PRO-123",
+  "decision": "Ticket passes Definition of Ready",
+  "rationale": "Clear summary, testable accepatance criteria present, single-module scope (auth/tokens).",
+  "inputs_referenced": [
+    "jira:PRO-123.description",
+    "jira:PRO-123.acceptance_criteria"
+  ],
+  "confidence": 0.9
+}
