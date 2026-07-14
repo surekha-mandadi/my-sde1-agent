@@ -21,14 +21,14 @@ Ambiguous or oversized tickets are **rejected with a comment back to Jira** rath
 ### 1.1 Why this matters
 
 - **Throughput** Offloads well-scope, low-risk tickets from human engineers
-- **Consistency** Every tickets passess the same D0D gates
+- **Consistency** Every tickets passess the same DoD gates
 - **Auditability** The entire ticket to PR trace is captured in GitHub Actions logs, the PR description, and Jira comments.
 - **Controlled risk** guradrails and the choise of oversight model let the team dial the autonomy up or down per repo or ticket.
 
 ---
 
 ## 2. Problem statement
-Engineering teams spend a considerable amount of time on small, well-defined tickets - be it bugs, minor features, dependency upgrades etc. We need an agent that behaves like a disciplined **SDE1**: it picks up a ticket only when the ticket is ready, implement it to a defined standard, proves the work meets the DoD through automated checks, and creates a clean PR to a reviewer. Importantcly, it must be able to scope the work well - declining tickets that are too large or ambiguous instaead of producing low-quality output.
+Engineering teams spend a considerable amount of time on small, well-defined tickets - be it bugs, minor features, dependency upgrades etc. We need an agent that behaves like a disciplined **SDE1**: it picks up a ticket only when the ticket is ready, implement it to a defined standard, proves the work meets the DoD through automated checks, and creates a clean PR to a reviewer. Importantly, it must be able to scope the work well - declining tickets that are too large or ambiguous instaead of producing low-quality output.
 
 ### 2.1 Goals
 
@@ -54,7 +54,7 @@ Engineering teams spend a considerable amount of time on small, well-defined tic
 | **Agent** | This single automated SDE1 process defined here. |
 | **DoD** | Definition of Done - the set of conditions that need to be satisfied in order to consider a ticket done. |
 | **Readiness (DoR)** | Definition of Ready - pre-reqs a ticket must meet to be picked up. |
-| **Gaurdrai** | An automated check that can block the PR (lint, tests etc.). |
+| **Gaurdrail** | An automated check that can block the PR (lint, tests etc.). |
 | **Oversight model** | The policy for whether a human must approve/merge. |
 | **Command trigger** | An explicit user action that starts a run for a given ticket. |
 
@@ -63,6 +63,50 @@ Engineering teams spend a considerable amount of time on small, well-defined tic
 ## 4. High-level architecture
 
 All phases emit **decision checkpoints** to a persistent trace (Section 10.2) that records what the agent decided and why.
+
+**Architecture diagram**
+```mermaid
+flowchart TD
+    subgraph TRIGGER["Trigger Layer (Section 5)"]
+        WD["workflow_dispatch<br/>(jira_id, target_branch, oversight_model)"]
+        SLASH["Jira slash command<br/>(webhook relay)"]
+        CLI["gh CLI wrapper"]
+    end
+
+    SLASH --> WD
+    CLI --> WD
+    WD --> RUNTIME
+
+    RUNTIME["Agent Runtime<br/>(GitHub Actions job)<br/>runs Phases 1-6 in order,<br/>stops on failure"]
+
+    subgraph INTEGRATIONS["Integrations (Section 6)"]
+        JIRA["Jira Integration<br/>REST API v3<br/>read / comment / transition"]
+        GH["GitHub Integration<br/>GITHUB_TOKEN + gh CLI<br/>branch / commit / PR"]
+    end
+
+    RUNTIME <-->|read ticket, post comments,<br/>transition status| JIRA
+    RUNTIME <-->|create branch, push,<br/>open PR| GH
+
+    RUNTIME --> DOD["DoD Pipeline<br/>ci.yml guardrails<br/>(Section 8.2 / 8.4)"]
+    RUNTIME --> OVERSIGHT["Oversight Policy<br/>Gated / Supervised / Autonomous<br/>(Section 9)"]
+    RUNTIME --> TRACE["Decision Trace<br/>checkpoints + decision-trace.json<br/>(Section 10)"]
+
+    DOD -->|required status checks| GH
+    OVERSIGHT -->|draft vs ready,<br/>manual vs auto-merge| GH
+    TRACE -->|linked in PR description| GH
+    TRACE -->|linked in comments| JIRA
+
+    subgraph REPO["Target Repository (Section 8.3)"]
+        BP["Branch protection"]
+        PRT["PR template"]
+        CO["CODEOWNERS"]
+        CFG["pyproject.toml, .bandit,<br/>.gitleaks.toml, coverage config"]
+    end
+
+    GH --- REPO
+    DOD --- CFG
+```
+For visualization of the workflow check workflow-diagram.md
 
 ### 4.1 Component responsibilities
 | Component | Responsibility |
@@ -85,7 +129,7 @@ The agent starts **only on an explicit user command**. Options:
     - `target_branch` (defaulted to repo default branch)
     - `oversight_model` (`gated` | `supervised` | `autonomous`, default `gated`)
 - **Convenience wrappers** 
-    - slash comman in Jira ticket comment (like /implement) forwarded via a small webhook relay to a dispatch endpoint
+    - slash command in Jira ticket comment (ex /implement) forwarded via a small webhook relay to a dispatch endpoint
     - `gh workflow run agent-run.yml -f jira_id=PROJ-123` from CLI.
 
 Note: `workflow_dispatch` keeps the trigger explicit and auditable (who dispatched, when) while allowing other front-ends without changing the core.
@@ -216,13 +260,17 @@ Notes:
 
 ## 9. Human Oversight - 3 models for consideration
 
-The three models differ only in **where the human gate sits**, not in what the agent does. All three run the same six phases, produce the same decision trace, and are subject to the same DoD gate in CI. The `oversight_model` input (Section 5) selects the model per run; it can also be pinned per repository (e.g. via a repo-level default in `agent-run.yml`) so that lower-trust repos cannot be run in Autonomous mode.
+The three models differ only in **where the human gate sits**, not in what the agent does. All three run the same six phases, produce the same decision trace, and are subject to the same DoD gate in CI. The `oversight_model` input (Section 5) selects the model per run; it can also be pinned per repository (e.g. via a repo-level default in `agent-run.yml`) so that lower-trust repos cannot be run in Autonomous mode. The models are listed in **garduation-path order**.
 
 ### 9.1 Gated (recommended default)
 
 - **Plan approval gate (mandatory):** after Phase 3, the agent posts the plan (approach, files, tests, assumptions) to Jira and/or as a PR-less comment/issue, and **pauses**. No code is written until a human explicitly approves.
 - **Code approval gate (optional, configurable):** after Phase 4, the agent can pause again for human review of the diff before Phase 6 opens a non-draft PR.
+- **Raising a PR *is* part of this model.** Gated does not replace PR step - it adds human approval gates(s) *in front of it*. 
+- Approval mechanism: a human replies/approves on the Jira ticket or a GitHub comment/environment-protection gate; the workflow resumes on approval and stops on rejection.
 - On rejection at either gate, the agent incorporates the feedback and re-submits for approval, up to a bounded number of rounds; if still declined, it stops and comments back to Jira.
+- **Pros:** catches misunderstanding *before* any effort is spent; highest-control.
+- **Cons:** slowest cycle time.
 - **When to use:** new repos, unfamiliar codebases, higher-risk tickets, or while the team is still building trust in the agent's judgement.
 
 ### 9.2 Supervised
@@ -230,6 +278,8 @@ The three models differ only in **where the human gate sits**, not in what the a
 - No pre-implementation approval gate. The agent runs Phases 1-5 autonomously and opens a **draft PR** in Phase 6.
 - A human reviews the draft PR as they would any teammate's PR, and merges it once satisfied (CI must still be green).
 - Decision checkpoints and the plan are included in the PR description so the reviewer has the same context a Gated approver would have seen - the review just happens after the code exists rather than before.
+- **Pros:** senior judgment on correctness; safest for higher-risk tasks.
+- **Cons:** human throughput remain a bottleneck.
 - **When to use:** the default "steady state" once a team trusts the agent's planning but still wants a human in the merge path.
 
 ### 9.3 Autonomous
@@ -237,6 +287,8 @@ The three models differ only in **where the human gate sits**, not in what the a
 - No human gate at any phase. If Phase 5 self-verify and the CI-run DoD checks are green, the agent **auto-merges** the PR in Phase 6.
 - If any DoD check fails and bounded self-correction (Phase 5) doesn't resolve it, the agent **aborts and comments** back to Jira rather than opening a PR - it never merges on a red or unresolved pipeline.
 - Decision checkpoints are still emitted and retained for audit, even though no human consumes them synchronously.
+- **Pros:** maximal throughput; zero human latency on well-scoped tickets.
+- **Cons:** relies entirely on guardrail coverage; a gap in checks will surface as a safety issue.
 - **When to use:** narrow, well-understood ticket categories (e.g. routine dependency bumps, well-scoped bug fixes) in repos with a mature, trusted DoD pipeline. Recommended only after a period of running Supervised with a low correction/rejection rate.
 
 ### 9.4 Maturity / graduation path
@@ -248,6 +300,25 @@ Teams are expected to move Gated -> Supervised -> Autonomous as confidence grows
 | Gated | Required (plan) | Optional (diff) | Human, after gates pass | New/unfamiliar repos, higher-risk work |
 | Supervised | None | Required (PR review) | Human | Default steady state |
 | Autonomous | None | None | Auto, on green | Narrow, proven, low-risk ticket categories |
+
+### 9.5 Model comparison
+
+| Dimension | Gated | Supervised | Autonomous |
+|-----------|-------|------------|------------|
+| **Pre-code human gate** | Required (plan approval) | None | None |
+| **Post-code human gate** | Optional (diff approval) | Required (PR review before merge) | None |
+| **Where the human touches the work** | Before any code is written, and optionally before merge | After code exists, at PR review | Not synchronously - only if something goes wrong |
+| **Merge mechanism** | Human, after gate(s) pass | Human, after reviewing the draft PR | Automatic, on green CI |
+| **Latency (ticket -> merged)** | Slowest - blocked on human availability at 1-2 points | Medium - blocked on one PR review | Fastest - no blocking wait if pipeline is green |
+| **Human effort per ticket** | Highest - reviews plan (and optionally diff) | Medium - reviews finished PR, same as a normal review | Lowest - none, unless a failure/abort needs triage |
+| **Risk exposure if the agent is wrong** | Lowest - bad plans are caught before code is written | Medium - bad code can reach a draft PR, but never merges unreviewed | Highest - a plausible-but-wrong change can merge if it passes all guardrails |
+| **Dependence on DoD guardrail quality** | Lower - human judgement is still a backstop | Medium - human judgement backstops what guardrails miss | Highest - guardrails are the *only* backstop, so they must be trustworthy |
+| **Failure handling (Phase 5 unresolved)** | Draft PR opened with failure summary for a human to pick up | Draft PR opened with failure summary for a human to pick up | Abort and comment to Jira - never opens a PR on an unresolved failure |
+| **Auditability** | Full decision trace, plus recorded human approvals/rejections at each gate | Full decision trace, reviewed at PR time | Full decision trace, but consumed after the fact (post-merge or on abort) |
+| **Rollback if something slips through** | Rare - caught pre-merge in most cases | Rare - caught at PR review | Relies entirely on normal post-merge incident process; strongest signal to move ticket category back to Supervised |
+| **Good fit for** | New/unfamiliar repos, higher-risk or first-time ticket categories, building initial trust | Default steady state once planning is trusted; most teams should live here day to day | Narrow, proven, low-risk ticket categories (e.g. dependency bumps) in repos with a mature DoD pipeline |
+| **Prerequisite to adopt** | None - this is the starting model | Track record of low plan-rejection rate in Gated | Track record of low correction/rejection rate in Supervised, over an agreed observation period |
+
 
 ---
 
@@ -261,6 +332,7 @@ The decision trace is what makes the agent auditable regardless of oversight mod
 
 Each decision checkpoint is a structured record containing:
 
+- **`checkpoint_id`** and **`phase`** (e.g., TO be updated)
 - `run_id` / `jira_id` - correlates the checkpoint to a specific agent run and ticket.
 - `phase` - which of the six phases emitted it.
 - `timestamp` and `oversight_model` in effect for the run.
