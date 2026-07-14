@@ -239,7 +239,7 @@ The three models differ only in **where the human gate sits**, not in what the a
 - Decision checkpoints are still emitted and retained for audit, even though no human consumes them synchronously.
 - **When to use:** narrow, well-understood ticket categories (e.g. routine dependency bumps, well-scoped bug fixes) in repos with a mature, trusted DoD pipeline. Recommended only after a period of running Supervised with a low correction/rejection rate.
 
-### 9.4 Maturity / graduation path
+### Maturity / graduation path
 
 Teams are expected to move Gated -> Supervised -> Autonomous as confidence grows, using the decision trace and PR outcomes as the evidence base for graduating a repo or ticket category to the next model. Regression is expected and fine: a repo can be moved back to a more conservative model at any time, and nothing prevents mixing models across repos or ticket types simultaneously.
 
