@@ -1,5 +1,5 @@
 ## Design for SDE1 agent
-This is a design for an SDE1 agent that takes a Jira ticket, implementa the change in a Python codebase, and raises a production-quality Pull Request. It is bounded by automated quality and security guardrails.
+This is a design for an SDE1 agent that takes a ticket, implements the change in a Python codebase, and raises a production-quality Pull Request. It is bounded by automated quality and security guardrails.
 
 ## Models
 The design presents 3 human-oversight models, listed in the order of supervision.

@@ -61,7 +61,7 @@ into this model happens inside each concrete client, not in the agent.
 - Implement `GitHubProjectsTicketClient(TicketClient)` using the GitHub
   GraphQL API v2 (Projects v2) via `httpx`, authenticated with
   `GITHUB_TOKEN` (reuse the Action's built-in token; no extra secret).
-  `owner`, `repo`, and `project_number` are constructor args, not env vars.
+  `owner`, `repo`, and `project_number` are constructor args, not env vars. No secrets in code.
 - Treat a Project item's linked Issue as the ticket; `fetch_ticket` reads
   the issue body/labels and any custom fields on the Project item (e.g. a
   single-select "Status" field) that the agent needs.

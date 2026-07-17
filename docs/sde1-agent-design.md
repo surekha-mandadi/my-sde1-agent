@@ -1,8 +1,8 @@
-# Design document:  autonomous sde1 agent-  jira ticket to pull request
+# Design document:  autonomous sde1 agent-   ticket to pull request
 
 ## 1. Executive Summary
 
- This document specifies the design of an  **autonomous SDE1 agent** that takes a Jira ticket, implements the required change in a python Codebase, and raises a production-quality pull request on GitHub - with automated guardrails enforcing a Definition of Done (DoD) before any PR is allowed to progress.
+ This document specifies the design of an  **autonomous SDE1 agent** that takes a Jira/or equivalent ticket, implements the required change in a python Codebase, and raises a production-quality pull request on GitHub - with automated guardrails enforcing a Definition of Done (DoD) before any PR is allowed to progress.
 
 The agent is modeled as a **single agent that executes a fixed, phased workflow** (understand -  plan - implement - self-verify - PR).  It is **triggerd by an explicit user command**, runs on **GitHub Actions**, and is bounded by **quality and security guardrails** (lint, type-check, unit tests, coverage, SAST, dependency and secret scanning) that gate the PR.
 
@@ -16,13 +16,13 @@ Three operating models are preseneted for the human-oversight decision, ordered 
 
 All models record **decision checkpoints** that trace the agent's reasoning at each phase (refer section 10), so AI decisions are auditable regardless of the chosen model.
 
-Ambiguous or oversized tickets are **rejected with a comment back to Jira** rather than implemented on guesswork.
+Ambiguous or oversized tickets are **rejected with a comment back to ticket** rather than implemented on guesswork.
 
 ### 1.1 Why this matters
 
 - **Throughput** Offloads well-scope, low-risk tickets from human engineers
 - **Consistency** Every tickets passess the same DoD gates
-- **Auditability** The entire ticket to PR trace is captured in GitHub Actions logs, the PR description, and Jira comments.
+- **Auditability** The entire ticket to PR trace is captured in GitHub Actions logs, the PR description, and ticket comments.
 - **Controlled risk** guradrails and the choise of oversight model let the team dial the autonomy up or down per repo or ticket.
 
 ---
@@ -32,11 +32,11 @@ Engineering teams spend a considerable amount of time on small, well-defined tic
 
 ### 2.1 Goals
 
-- Convert a **ready** Jira ticket into a production-quality PR without human coding.
+- Convert a **ready** ticket into a production-quality PR without human coding.
 - Enforce a machine-checkable **Definition of Done** as a hard gate.
 - Provide **security guardrails** before PR
 - Support **3 models** - (Gated pre-implementation approval, Supervised, and Autonomous) along a maturity path
-- Produce a full **audit trail** across Jira, GitHub, and Actions, including **decision checkpoints** that trace the agent's reasoning at each phase.
+- Produce a full **audit trail** across the ticket, GitHub, and Actions, including **decision checkpoints** that trace the agent's reasoning at each phase.
 
 ### 2.2 What it is not
 
@@ -65,10 +65,12 @@ Engineering teams spend a considerable amount of time on small, well-defined tic
 All phases emit **decision checkpoints** to a persistent trace (Section 10.2) that records what the agent decided and why.
 
 **Architecture diagram**
+
+Note: Assumes Jira as the requirements system. Works for any tool.
 ```mermaid
 flowchart TD
     subgraph TRIGGER["Trigger Layer (Section 5)"]
-        WD["workflow_dispatch<br/>(jira_id, target_branch, oversight_model)"]
+        WD["workflow_dispatch<br/>(ticket_id, target_branch, oversight_model)"]
         SLASH["Jira slash command<br/>(webhook relay)"]
         CLI["gh CLI wrapper"]
     end
@@ -125,11 +127,11 @@ For visualization of the workflow check workflow-diagram.md
 The agent starts **only on an explicit user command**. Options:
 
 - **Primary:** GitHub Actions `workflow_dispatch` with inputs:
-    - `jira_id` - required
+    - `ticket_id` - required
     - `target_branch` (defaulted to repo default branch)
     - `oversight_model` (`gated` | `supervised` | `autonomous`, default `gated`)
 - **Convenience wrappers** 
-    - slash command in Jira ticket comment (ex /implement) forwarded via a small webhook relay to a dispatch endpoint
+    - slash command in ticket comment (ex /implement) forwarded via a small webhook relay to a dispatch endpoint
     - `gh workflow run agent-run.yml -f jira_id=PROJ-123` from CLI.
 
 Note: `workflow_dispatch` keeps the trigger explicit and auditable (who dispatched, when) while allowing other front-ends without changing the core.
@@ -154,7 +156,7 @@ The trigger is a user command, not an event, so webhooks are unnecessary for ini
 The agent is a **single agent** that runs a **fixed, sequential pipeline**. Each phase has an explicit exit gate; failure to pass a gate stops the run and reports back.
 
 ### Phase 1 - Understand
-- Fetch the Jira ticket - summry, description, acceptance criteria, labels, linked issues, attachements.
+- Fetch the ticket - summary, description, acceptance criteria, labels, linked issues, attachements.
 - Normalize into a structured internal ticket model
 
 ### Phase 2 - Readiness (DoR gate)
@@ -168,7 +170,7 @@ The agent is a **single agent** that runs a **fixed, sequential pipeline**. Each
 - **Gated - plan approval gate:** post the plan to Jira/GitHub and **pause**, awaiting explicit human approval before any code is written. On rejection, incorporate feedback and re-request approval, or stop if declined.
 
 ### Phase 4 - Implement
-- Create a working branch `agent\JIRA-ID-short-title`.
+- Create a working branch `agent\TICKET-ID-short-title`.
 - Make focused code changes following repo conventions.
 - Add/adjust unit tests to cover the change and its acceptance criteria. Always review the tests and use property based tests as much as possible
 - **Emit decision checkpoints** for implementation choices
@@ -181,12 +183,12 @@ The agent is a **single agent** that runs a **fixed, sequential pipeline**. Each
 
 ### Phase 6 - Raise PR
 - Push the branch and open a PR that:
-    - Links the Jira ticket (title prefix `PRO-123:`).
+    - Links the ticket (title prefix `PRO-123:`).
     - Uses the repo PR template (if present) and includes plan, changes, and DoD status.
     - Adds the `co-authored-by: <the used model>` trailer.
     - Includes a link to or summary of the **decision trace** for reviewer visibility.
 - Apply the oversight model (Section 9): proceed as Supervised (draft PR for review) or Autonomous (auto-merge on Green) - in the Dated model, only after the approval gate(s) passed.
-- Transition the Jira ticket (ex: `In Review`).
+- Transition the ticket (ex: `In Review`).
 
 ---
 
@@ -220,7 +222,7 @@ A ticket is considered as **changes done** only when **all** of the following pa
 6. **Security - SAST** Python static analysis with no high-severity findings.
 7. **Security - Dependencies** `pip-audit` with no unresolved high/critical`.
 8. **Security - secrets** `gitleaks` / `detect-secrets` finds no committed secrets.
-9. **PR hygiene** links the Jira ticket, follows the PR template, focused diff.
+9. **PR hygiene** links the ticket, follows the PR template, focused diff.
 
 > A ready checklist is provided for reference in
 >  [`agent-config/definition-of-done.md`] (../agent-config/definition-of-done.md).
@@ -233,7 +235,7 @@ For the guardrails to be enforceable, the repo must have:
 - **`agent-run.yml`** Workflow implementing the `workflow_dispatch` trigger and the phased agent.
 - **`Branch protection`** on the default branch requiring the `ci.yml` checks to pass before merge.
 - **`Project config`** for the tools: `pyproject.toml`, coverage config, and `.gitleaks.toml`, `.bandit` as needed.
-- **Secrets** configured in the repo/org: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`.
+- **Secrets** configured in the repo/org (if using Jira): `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`.
 - **PR template** (`.github/pull_request_template.md`) so agent PRs are consistent.
 - **CODEOWNERS** To route reviews.
 
@@ -332,16 +334,21 @@ The decision trace is what makes the agent auditable regardless of oversight mod
 
 Each decision checkpoint is a structured record containing:
 
-- **`checkpoint_id`** and **`phase`** (e.g., TO be updated)
-- `run_id` / `jira_id` - correlates the checkpoint to a specific agent run and ticket.
+- **`checkpoint_id`** and **`phase`** (e.g., `plan`, `implement`).
+- **`timestamp`** and **`run_id`** +  `jira_id` - correlates the checkpoint to a specific agent run and ticket.
 - `phase` - which of the six phases emitted it.
-- `timestamp` and `oversight_model` in effect for the run.
+- `oversight_model` in effect for the run.
 - `decision` - a short statement of what was decided (e.g. "chosen approach: extend `PaymentValidator` rather than introduce a new class").
 - `rationale` - why, in terms of the ticket's acceptance criteria and repo conventions.
 - `alternatives_considered` - options that were weighed and not chosen, and why.
 - `assumptions` - anything the agent assumed in the absence of explicit ticket detail (kept deliberately minimal per Section 8.1 - a ticket that requires many assumptions should have failed the DoR gate).
 - `inputs_referenced` - ticket fields, files, or prior checkpoints the decision drew on.
 - `outcome`, where applicable (e.g. guardrail pass/fail counts in Phase 5, approval/rejection in a Gated gate).
+
+> A machine-readable schema is provided in
+> agent-config\decision-trace.schema.json ,
+> with an example in
+> agent-config\decision-trace.example.jsonl
 
 ### 10.3 Storage and surfacing
 
@@ -373,7 +380,7 @@ General principle: **fail closed, comment loudly, never guess.** Any failure mod
 | 10 | Secrets/credentials scoped incorrectly or missing (Section 6) | Fail fast at the start of the run (pre-flight credential check) rather than partway through implementation. |
 | 11 | Agent produces code that passes all guardrails but is judged low quality by a human reviewer (Supervised) | This is an expected outcome, not a defect: Supervised exists precisely to catch what the DoD can't machine-check. Feedback is captured as a rejection/change-request on the PR; repeated occurrences for a ticket category are a signal the category isn't ready for Autonomous. |
 | 12 | Ticket references a linked issue, attachment, or dependency the agent cannot resolve (e.g. private attachment, cross-project link without access) | Treated as a DoR failure (missing/blocked dependency, Section 8.1) - reject and comment rather than proceeding on an incomplete picture. |
-| 13 | Duplicate/concurrent runs triggered for the same ticket | Agent runtime checks for an existing open branch/PR or in-progress run for the `jira_id` before starting; if found, stop and comment rather than creating conflicting branches. |
+| 13 | Duplicate/concurrent runs triggered for the same ticket | Agent runtime checks for an existing open branch/PR or in-progress run for the `ticket_id` before starting; if found, stop and comment rather than creating conflicting branches. |
 | 14 | Autonomous run auto-merges and a regression surfaces later | Out of scope for the agent itself to detect post-merge, but the decision trace (Section 10) and PR history provide the audit trail needed for a human-led rollback/incident process; this is a strong signal to move that ticket category back to Supervised. |
 
 ---
@@ -404,7 +411,7 @@ General principle: **fail closed, comment loudly, never guess.** Any failure mod
 ### 12.4 Blast-radius limits
 
 - Scope is bounded at the DoR gate (Section 8.1): single logical concern, bounded file count, no cross-service/architectural changes. This is a security control as much as a quality one - it limits how much an unsupervised (Autonomous) run can change in one pass.
-- The agent works on a dedicated branch (`agent/JIRA-ID-short-title`) and never pushes directly to the default/protected branch.
+- The agent works on a dedicated branch (`agent/Ticket-ID-short-title`) and never pushes directly to the default/protected branch.
 - Autonomous mode's auto-merge is still gated by the full DoD suite including SAST, dependency, and secret scanning (Section 8.2) - there is no "fast path" that skips security guardrails at higher trust levels; only the human-approval step is removed.
 
 ---
@@ -420,7 +427,7 @@ The rollout follows the same "prove it, then loosen the gate" philosophy as the 
 - **Exit criteria:** a human-authored PR can be merged today only by passing every DoD check; this is validated before any agent code is written.
 
 ### Milestone 1 - Phases 1-3 (Understand, Readiness, Plan) in Gated mode only
-- Build the Jira client (read/comment/transition), the DoR evaluator (Phase 2), and the planning phase (Phase 3) with decision-checkpoint emission (Section 10).
+- Build the Jira/your project requirements client (read/comment/transition), the DoR evaluator (Phase 2), and the planning phase (Phase 3) with decision-checkpoint emission (Section 10).
 - No code-writing yet - validate on real tickets that DoR rejection and plan quality are trustworthy before letting the agent touch the codebase.
 - **Exit criteria:** plans produced for a sample of real tickets are judged usable by the team without edits, and DoR rejections are judged correct (no false rejects/accepts).
 

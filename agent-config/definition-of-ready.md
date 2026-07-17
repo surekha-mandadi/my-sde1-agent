@@ -5,7 +5,7 @@ The agent picks up a Jira ticket **only if every item below is satisfied**. If a
 # Checklist
 
 - [ ] **Clear summary** - the title states the change in one line.
-- [ ] **Unabbiguous description** - the problem/desired behaviour is described without contradictions or open questions.
+- [ ] **Unambiguous description** - the problem/desired behaviour is described without contradictions or open questions.
 - [ ] **Testable acceptance criteria** - explicit, verifiable criteria are present (Given/when/then or an equivalent checklist) .
 - [ ] **SDE1-sized scope** - a single logical concern; bounded number of files; no cross-service or architectural changes.
 - [ ] **No blocking dependencies** - no unresolved upstream tickets, decisions, or access requirements.
