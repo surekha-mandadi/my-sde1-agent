@@ -6,7 +6,7 @@
 
 The agent is modeled as a **single agent that executes a fixed, phased workflow** (understand -  plan - implement - self-verify - PR).  It is **triggerd by an explicit user command**, runs on **GitHub Actions**, and is bounded by **quality and security guardrails** (lint, type-check, unit tests, coverage, SAST, dependency and secret scanning) that gate the PR.
 
-Three operating models are preseneted for the human-oversight decision, ordered along the **maturity path or graduation path** teams follow as trust in the agent grows:
+Three operating models are presented for the human-oversight decision, ordered along the **maturity path or graduation path** teams follow as trust in the agent grows:
 
 - **Gated (recommended default):** agent pauses at explicit checkpoints and requires human approval of the plan (and optionally the code) *before* it proceeds. This is the highest-control model.
 
@@ -20,15 +20,15 @@ Ambiguous or oversized tickets are **rejected with a comment back to ticket** ra
 
 ### 1.1 Why this matters
 
-- **Throughput** Offloads well-scope, low-risk tickets from human engineers
-- **Consistency** Every tickets passess the same DoD gates
+- **Throughput** Offloads well-scoped, low-risk tickets from human engineers
+- **Consistency** Every ticket passess the same DoD gates
 - **Auditability** The entire ticket to PR trace is captured in GitHub Actions logs, the PR description, and ticket comments.
-- **Controlled risk** guradrails and the choise of oversight model let the team dial the autonomy up or down per repo or ticket.
+- **Controlled risk** guradrails and the choice of oversight model let the team dial the autonomy up or down per repo or ticket.
 
 ---
 
 ## 2. Problem statement
-Engineering teams spend a considerable amount of time on small, well-defined tickets - be it bugs, minor features, dependency upgrades etc. We need an agent that behaves like a disciplined **SDE1**: it picks up a ticket only when the ticket is ready, implement it to a defined standard, proves the work meets the DoD through automated checks, and creates a clean PR to a reviewer. Importantly, it must be able to scope the work well - declining tickets that are too large or ambiguous instaead of producing low-quality output.
+Engineering teams spend a considerable amount of time on small, well-defined tickets - be it bugs, minor features, dependency upgrades etc. We need an agent that behaves like a disciplined **SDE1**: it picks up a ticket only when the ticket is ready, implement it to a defined standard, proves the work meets the DoD through automated checks, and creates a clean PR to a reviewer. Importantly, it must be able to scope the work well - declining tickets that are too large or ambiguous instead of producing low-quality output.
 
 ### 2.1 Goals
 
@@ -42,7 +42,7 @@ Engineering teams spend a considerable amount of time on small, well-defined tic
 
 - Not a multi-agent framework (single phased agent by design)
 - Not responsible for ticket refinement. Tickets have to be well defined.
-- Not intended for large, cross-cutting, or architecturally ambiguaos work.
+- Not intended for large, cross-cutting, or architecturally ambiguous work.
 - Not a replacement for code review
 
 ---
